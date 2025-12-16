@@ -1,209 +1,59 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
 <title>GLOM Panel</title>
-
 <style>
-* { box-sizing: border-box; }
-
-body {
-  margin: 0;
-  min-height: 100vh;
-  background: radial-gradient(circle at top, #1a0000, #000);
-  font-family: "Segoe UI", Arial;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.card {
-  width: 420px;
-  background: rgba(10,10,10,0.97);
-  border: 1px solid #300;
-  border-radius: 10px;
-  padding: 22px;
-  box-shadow: 0 0 40px rgba(255,0,0,0.18);
-}
-
-h1 {
-  text-align: center;
-  margin: 0 0 18px;
-  letter-spacing: 2px;
-}
-
-.input {
-  width: 100%;
-  padding: 12px;
-  margin-bottom: 10px;
-  border-radius: 6px;
-  border: 1px solid #400;
-  background: #0a0a0a;
-  color: #fff;
-}
-
-.button {
-  width: 100%;
-  padding: 12px;
-  background: linear-gradient(135deg, #8b0000, #c00000);
-  border: none;
-  border-radius: 6px;
-  color: #fff;
-  font-weight: bold;
-  letter-spacing: 1px;
-  cursor: pointer;
-}
-
-.button:hover { opacity: 0.9; }
-
-.error {
-  margin-top: 8px;
-  color: #ff4d4d;
-  font-size: 14px;
-  text-align: center;
-}
-
-.hidden { display: none; }
-
-.row {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.badge {
-  padding: 3px 8px;
-  border-radius: 4px;
-  background: #500;
-  font-size: 12px;
-}
-
-pre {
-  background: #050505;
-  border: 1px solid #300;
-  padding: 10px;
-  border-radius: 6px;
-  max-height: 240px;
-  overflow: auto;
-}
+body{background:#000;color:#fff;font-family:Arial}
+.card{width:420px;margin:80px auto;border:1px solid #300;padding:20px}
+input,button{width:100%;padding:10px;margin:5px 0}
+button{background:#900;color:#fff;border:none}
+.hidden{display:none}
+pre{background:#111;padding:10px}
 </style>
 </head>
-
 <body>
 
-<!-- LOGIN -->
-<div class="card" id="loginCard">
-  <h1>GLOM LOGIN</h1>
-
-  <input id="username" class="input" placeholder="Username">
-  <input id="password" type="password" class="input" placeholder="Password">
-  <input id="totp" class="input" placeholder="2FA (optional)">
-
-  <button class="button" type="button" onclick="login()">LOGIN</button>
-  <div id="error" class="error"></div>
+<div class="card" id="login">
+<h2>Login</h2>
+<input id="u" placeholder="Username">
+<input id="p" type="password" placeholder="Password">
+<button onclick="login()">Login</button>
+<div id="err"></div>
 </div>
 
-<!-- PANEL -->
-<div class="card hidden" id="panelCard">
-  <h1>GLOM PANEL</h1>
-
-  <div class="row">
-    <div>User: <b id="meUser"></b></div>
-    <div class="badge" id="meRole"></div>
-  </div>
-
-  <button class="button" onclick="loadLicenses()">LOAD LICENSES</button>
-  <button class="button" id="logsBtn" onclick="loadLogs()">VIEW LOGS</button>
-  <button class="button" style="background:#333" onclick="logout()">LOGOUT</button>
-
-  <pre id="output"></pre>
+<div class="card hidden" id="panel">
+<h2 id="role"></h2>
+<button onclick="loadLic()">Licenses</button>
+<button id="logsBtn" onclick="loadLogs()">Logs</button>
+<pre id="out"></pre>
+<button onclick="logout()">Logout</button>
 </div>
 
 <script>
-const $ = id => document.getElementById(id);
-let TOKEN = "";
-
-/* ---------------- LOGIN ---------------- */
-function login() {
-  $("error").innerText = "";
-
-  const data = {
-    username: $("username").value.trim(),
-    password: $("password").value,
-    totp: $("totp").value.trim()
-  };
-
-  if (!data.username || !data.password) {
-    $("error").innerText = "Enter username & password";
-    return;
-  }
-
-  fetch("/auth/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data)
-  })
-  .then(async res => {
-    const j = await res.json().catch(()=>({}));
-    if (!res.ok) throw new Error(j.error || "Login failed");
-    return j;
-  })
-  .then(j => {
-    TOKEN = j.token;
-    afterLogin();
-  })
-  .catch(err => {
-    $("error").innerText = err.message;
-  });
+let T="", R="";
+function login(){
+ fetch("/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},
+ body:JSON.stringify({username:u.value,password:p.value})})
+ .then(r=>r.json()).then(d=>{
+  if(!d.token){err.innerText="Login failed";return;}
+  T=d.token; R=d.role;
+  login.classList.add("hidden");
+  panel.classList.remove("hidden");
+  role.innerText="ROLE: "+R;
+  if(!["MASTER","OWNER"].includes(R)) logsBtn.style.display="none";
+ });
 }
-
-/* ---------------- AFTER LOGIN ---------------- */
-function afterLogin() {
-  // فك التوكن لمعرفة الرتبة
-  const payload = JSON.parse(atob(TOKEN.split(".")[1]));
-  $("meUser").innerText = $("username").value;
-  $("meRole").innerText = payload.role;
-
-  // صلاحيات
-  if (!["MASTER","OWNER"].includes(payload.role)) {
-    $("logsBtn").style.display = "none";
-  }
-
-  $("loginCard").classList.add("hidden");
-  $("panelCard").classList.remove("hidden");
+function loadLic(){
+ fetch("/licenses",{headers:{Authorization:"Bearer "+T}})
+ .then(r=>r.json()).then(d=>out.textContent=JSON.stringify(d,null,2));
 }
-
-/* ---------------- LOAD LICENSES ---------------- */
-function loadLicenses() {
-  fetch("/licenses", {
-    headers: { Authorization: "Bearer " + TOKEN }
-  })
-  .then(r => r.json())
-  .then(d => {
-    $("output").textContent = JSON.stringify(d, null, 2);
-  });
+function loadLogs(){
+ fetch("/logs",{headers:{Authorization:"Bearer "+T}})
+ .then(r=>r.json()).then(d=>out.textContent=JSON.stringify(d,null,2));
 }
-
-/* ---------------- LOAD LOGS ---------------- */
-function loadLogs() {
-  fetch("/logs", {
-    headers: { Authorization: "Bearer " + TOKEN }
-  })
-  .then(r => r.json())
-  .then(d => {
-    $("output").textContent = JSON.stringify(d, null, 2);
-  });
-}
-
-/* ---------------- LOGOUT ---------------- */
-function logout() {
-  TOKEN = "";
-  $("panelCard").classList.add("hidden");
-  $("loginCard").classList.remove("hidden");
-  $("password").value = "";
-  $("totp").value = "";
-  $("output").textContent = "";
+function logout(){
+ T=""; panel.classList.add("hidden"); login.classList.remove("hidden");
 }
 </script>
 
