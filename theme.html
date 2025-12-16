@@ -1,71 +1,129 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>GLOM Panel</title>
+<title>GLOM Authorization</title>
+
 <style>
-body{background:#000;color:#fff;font-family:Arial}
-.card{border:1px solid #333;padding:12px;margin:10px}
-button{background:#b00000;color:#fff;border:none;padding:5px;margin:2px}
-.hidden{display:none}
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  height: 100vh;
+  background: radial-gradient(circle at top, #1a0000, #000);
+  font-family: "Segoe UI", Arial;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card {
+  width: 360px;
+  background: rgba(10,10,10,0.95);
+  border: 1px solid #300;
+  border-radius: 10px;
+  padding: 25px;
+  box-shadow: 0 0 40px rgba(255,0,0,0.15);
+}
+
+h1 {
+  margin: 0 0 20px;
+  text-align: center;
+  font-size: 22px;
+  letter-spacing: 2px;
+}
+
+.input {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 12px;
+  border-radius: 6px;
+  border: 1px solid #400;
+  background: #0a0a0a;
+  color: #fff;
+  outline: none;
+}
+
+.input:focus {
+  border-color: #a00000;
+}
+
+.button {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(135deg, #8b0000, #c00000);
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-weight: bold;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+
+.button:hover {
+  opacity: 0.9;
+}
+
+.error {
+  margin-top: 10px;
+  color: #ff4d4d;
+  font-size: 14px;
+  text-align: center;
+}
 </style>
 </head>
+
 <body>
 
-<div class="card" id="login">
-<input id="u" placeholder="user">
-<input id="p" type="password" placeholder="pass">
-<button onclick="login()">Login</button>
-</div>
+<div class="card">
+  <h1>GLOM LOGIN</h1>
 
-<div class="card hidden" id="panel">
-<h3 id="role"></h3>
-<button onclick="loadLic()">Licenses</button>
-<button id="logsBtn" onclick="loadLogs()">Logs</button>
-<pre id="out"></pre>
+  <input id="username" class="input" placeholder="Username">
+  <input id="password" type="password" class="input" placeholder="Password">
+  <input id="totp" class="input" placeholder="2FA Code (optional)">
+
+  <button class="button" type="button" onclick="login()">LOGIN</button>
+
+  <div id="error" class="error"></div>
 </div>
 
 <script>
-let T="", ROLE="";
+const $ = id => document.getElementById(id);
 
-function login(){
- fetch("/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},
- body:JSON.stringify({username:u.value,password:p.value})})
- .then(r=>r.json()).then(d=>{
-  T=d.token; ROLE=d.role;
-  login.classList.add("hidden");
-  panel.classList.remove("hidden");
-  role.innerText="ROLE: "+ROLE;
-  if(!["MASTER","OWNER"].includes(ROLE)) logsBtn.style.display="none";
- });
-}
+function login() {
+  $("error").innerText = "";
 
-function loadLic(){
- fetch("/licenses",{headers:{Authorization:"Bearer "+T}})
- .then(r=>r.json()).then(d=>{
-  out.innerHTML=d.map(l=>`
-${l.product.name} | ${l.status}
-${["MASTER","OWNER","SOURCE"].includes(ROLE)?`<button onclick="reset('${l._id}')">Reset HWID</button>`:""}
-${ROLE==="MASTER"?`<button onclick="del('${l._id}')">Delete</button>`:""}
-`).join("<hr>");
- });
-}
+  const data = {
+    username: $("username").value.trim(),
+    password: $("password").value,
+    totp: $("totp").value.trim()
+  };
 
-function reset(id){
- fetch("/licenses/"+id+"/reset-hwid",{method:"POST",headers:{Authorization:"Bearer "+T}})
- .then(()=>alert("HWID Reset"));
-}
+  if (!data.username || !data.password) {
+    $("error").innerText = "Enter username and password";
+    return;
+  }
 
-function del(id){
- fetch("/licenses/"+id,{method:"DELETE",headers:{Authorization:"Bearer "+T}})
- .then(()=>loadLic());
-}
-
-function loadLogs(){
- fetch("/logs",{headers:{Authorization:"Bearer "+T}})
- .then(r=>r.json()).then(d=>{
-  out.textContent=JSON.stringify(d,null,2);
- });
+  fetch("/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data)
+  })
+  .then(async res => {
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.error || "Login failed");
+    return json;
+  })
+  .then(d => {
+    console.log("TOKEN:", d.token);
+    location.reload(); // أو حولك للبانل لاحقًا
+  })
+  .catch(err => {
+    $("error").innerText = err.message;
+  });
 }
 </script>
 
