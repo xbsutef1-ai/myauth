@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>GLOM Panel</title>
+<style>
+body{background:#000;color:#fff;font-family:Arial}
+.card{border:1px solid #333;padding:12px;margin:10px}
+button{background:#b00000;color:#fff;border:none;padding:5px;margin:2px}
+.hidden{display:none}
+</style>
+</head>
+<body>
+
+<div class="card" id="login">
+<input id="u" placeholder="user">
+<input id="p" type="password" placeholder="pass">
+<button onclick="login()">Login</button>
+</div>
+
+<div class="card hidden" id="panel">
+<h3 id="role"></h3>
+<button onclick="loadLic()">Licenses</button>
+<button id="logsBtn" onclick="loadLogs()">Logs</button>
+<pre id="out"></pre>
+</div>
+
+<script>
+let T="", ROLE="";
+
+function login(){
+ fetch("/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},
+ body:JSON.stringify({username:u.value,password:p.value})})
+ .then(r=>r.json()).then(d=>{
+  T=d.token; ROLE=d.role;
+  login.classList.add("hidden");
+  panel.classList.remove("hidden");
+  role.innerText="ROLE: "+ROLE;
+  if(!["MASTER","OWNER"].includes(ROLE)) logsBtn.style.display="none";
+ });
+}
+
+function loadLic(){
+ fetch("/licenses",{headers:{Authorization:"Bearer "+T}})
+ .then(r=>r.json()).then(d=>{
+  out.innerHTML=d.map(l=>`
+${l.product.name} | ${l.status}
+${["MASTER","OWNER","SOURCE"].includes(ROLE)?`<button onclick="reset('${l._id}')">Reset HWID</button>`:""}
+${ROLE==="MASTER"?`<button onclick="del('${l._id}')">Delete</button>`:""}
+`).join("<hr>");
+ });
+}
+
+function reset(id){
+ fetch("/licenses/"+id+"/reset-hwid",{method:"POST",headers:{Authorization:"Bearer "+T}})
+ .then(()=>alert("HWID Reset"));
+}
+
+function del(id){
+ fetch("/licenses/"+id,{method:"DELETE",headers:{Authorization:"Bearer "+T}})
+ .then(()=>loadLic());
+}
+
+function loadLogs(){
+ fetch("/logs",{headers:{Authorization:"Bearer "+T}})
+ .then(r=>r.json()).then(d=>{
+  out.textContent=JSON.stringify(d,null,2);
+ });
+}
+</script>
+
+</body>
+</html>
