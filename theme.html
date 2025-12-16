@@ -2,16 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>GLOM Authorization</title>
+<title>GLOM Panel</title>
 
 <style>
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 body {
   margin: 0;
-  height: 100vh;
+  min-height: 100vh;
   background: radial-gradient(circle at top, #1a0000, #000);
   font-family: "Segoe UI", Arial;
   color: #fff;
@@ -21,34 +19,28 @@ body {
 }
 
 .card {
-  width: 360px;
-  background: rgba(10,10,10,0.95);
+  width: 420px;
+  background: rgba(10,10,10,0.97);
   border: 1px solid #300;
   border-radius: 10px;
-  padding: 25px;
-  box-shadow: 0 0 40px rgba(255,0,0,0.15);
+  padding: 22px;
+  box-shadow: 0 0 40px rgba(255,0,0,0.18);
 }
 
 h1 {
-  margin: 0 0 20px;
   text-align: center;
-  font-size: 22px;
+  margin: 0 0 18px;
   letter-spacing: 2px;
 }
 
 .input {
   width: 100%;
   padding: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   border-radius: 6px;
   border: 1px solid #400;
   background: #0a0a0a;
   color: #fff;
-  outline: none;
-}
-
-.input:focus {
-  border-color: #a00000;
 }
 
 .button {
@@ -63,36 +55,76 @@ h1 {
   cursor: pointer;
 }
 
-.button:hover {
-  opacity: 0.9;
-}
+.button:hover { opacity: 0.9; }
 
 .error {
-  margin-top: 10px;
+  margin-top: 8px;
   color: #ff4d4d;
   font-size: 14px;
   text-align: center;
+}
+
+.hidden { display: none; }
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.badge {
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: #500;
+  font-size: 12px;
+}
+
+pre {
+  background: #050505;
+  border: 1px solid #300;
+  padding: 10px;
+  border-radius: 6px;
+  max-height: 240px;
+  overflow: auto;
 }
 </style>
 </head>
 
 <body>
 
-<div class="card">
+<!-- LOGIN -->
+<div class="card" id="loginCard">
   <h1>GLOM LOGIN</h1>
 
   <input id="username" class="input" placeholder="Username">
   <input id="password" type="password" class="input" placeholder="Password">
-  <input id="totp" class="input" placeholder="2FA Code (optional)">
+  <input id="totp" class="input" placeholder="2FA (optional)">
 
   <button class="button" type="button" onclick="login()">LOGIN</button>
-
   <div id="error" class="error"></div>
+</div>
+
+<!-- PANEL -->
+<div class="card hidden" id="panelCard">
+  <h1>GLOM PANEL</h1>
+
+  <div class="row">
+    <div>User: <b id="meUser"></b></div>
+    <div class="badge" id="meRole"></div>
+  </div>
+
+  <button class="button" onclick="loadLicenses()">LOAD LICENSES</button>
+  <button class="button" id="logsBtn" onclick="loadLogs()">VIEW LOGS</button>
+  <button class="button" style="background:#333" onclick="logout()">LOGOUT</button>
+
+  <pre id="output"></pre>
 </div>
 
 <script>
 const $ = id => document.getElementById(id);
+let TOKEN = "";
 
+/* ---------------- LOGIN ---------------- */
 function login() {
   $("error").innerText = "";
 
@@ -103,7 +135,7 @@ function login() {
   };
 
   if (!data.username || !data.password) {
-    $("error").innerText = "Enter username and password";
+    $("error").innerText = "Enter username & password";
     return;
   }
 
@@ -113,17 +145,65 @@ function login() {
     body: JSON.stringify(data)
   })
   .then(async res => {
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(json.error || "Login failed");
-    return json;
+    const j = await res.json().catch(()=>({}));
+    if (!res.ok) throw new Error(j.error || "Login failed");
+    return j;
   })
-  .then(d => {
-    console.log("TOKEN:", d.token);
-    location.reload(); // أو حولك للبانل لاحقًا
+  .then(j => {
+    TOKEN = j.token;
+    afterLogin();
   })
   .catch(err => {
     $("error").innerText = err.message;
   });
+}
+
+/* ---------------- AFTER LOGIN ---------------- */
+function afterLogin() {
+  // فك التوكن لمعرفة الرتبة
+  const payload = JSON.parse(atob(TOKEN.split(".")[1]));
+  $("meUser").innerText = $("username").value;
+  $("meRole").innerText = payload.role;
+
+  // صلاحيات
+  if (!["MASTER","OWNER"].includes(payload.role)) {
+    $("logsBtn").style.display = "none";
+  }
+
+  $("loginCard").classList.add("hidden");
+  $("panelCard").classList.remove("hidden");
+}
+
+/* ---------------- LOAD LICENSES ---------------- */
+function loadLicenses() {
+  fetch("/licenses", {
+    headers: { Authorization: "Bearer " + TOKEN }
+  })
+  .then(r => r.json())
+  .then(d => {
+    $("output").textContent = JSON.stringify(d, null, 2);
+  });
+}
+
+/* ---------------- LOAD LOGS ---------------- */
+function loadLogs() {
+  fetch("/logs", {
+    headers: { Authorization: "Bearer " + TOKEN }
+  })
+  .then(r => r.json())
+  .then(d => {
+    $("output").textContent = JSON.stringify(d, null, 2);
+  });
+}
+
+/* ---------------- LOGOUT ---------------- */
+function logout() {
+  TOKEN = "";
+  $("panelCard").classList.add("hidden");
+  $("loginCard").classList.remove("hidden");
+  $("password").value = "";
+  $("totp").value = "";
+  $("output").textContent = "";
 }
 </script>
 
