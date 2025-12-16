@@ -7,22 +7,25 @@
 body{background:#000;color:#fff;font-family:Arial}
 .card{width:420px;margin:80px auto;border:1px solid #300;padding:20px}
 input,button{width:100%;padding:10px;margin:5px 0}
-button{background:#900;color:#fff;border:none}
+button{background:#900;color:#fff;border:none;cursor:pointer}
 .hidden{display:none}
 pre{background:#111;padding:10px}
+#error{color:#f55;margin-top:5px}
 </style>
 </head>
 <body>
 
-<div class="card" id="login">
+<!-- LOGIN -->
+<div class="card" id="loginCard">
 <h2>Login</h2>
 <input id="u" placeholder="Username">
 <input id="p" type="password" placeholder="Password">
-<button onclick="login()">Login</button>
-<div id="err"></div>
+<button type="button" onclick="doLogin()">Login</button>
+<div id="error"></div>
 </div>
 
-<div class="card hidden" id="panel">
+<!-- PANEL -->
+<div class="card hidden" id="panelCard">
 <h2 id="role"></h2>
 <button onclick="loadLic()">Licenses</button>
 <button id="logsBtn" onclick="loadLogs()">Logs</button>
@@ -31,29 +34,75 @@ pre{background:#111;padding:10px}
 </div>
 
 <script>
-let T="", R="";
-function login(){
- fetch("/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},
- body:JSON.stringify({username:u.value,password:p.value})})
- .then(r=>r.json()).then(d=>{
-  if(!d.token){err.innerText="Login failed";return;}
-  T=d.token; R=d.role;
-  login.classList.add("hidden");
-  panel.classList.remove("hidden");
-  role.innerText="ROLE: "+R;
-  if(!["MASTER","OWNER"].includes(R)) logsBtn.style.display="none";
- });
+let TOKEN = "";
+let ROLE = "";
+
+const $ = id => document.getElementById(id);
+
+/* -------- LOGIN -------- */
+function doLogin(){
+  $("error").innerText = "";
+
+  fetch("/auth/login",{
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body:JSON.stringify({
+      username: $("u").value.trim(),
+      password: $("p").value
+    })
+  })
+  .then(async r=>{
+    const d = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(d.error || "Login failed");
+    return d;
+  })
+  .then(d=>{
+    TOKEN = d.token;
+    ROLE  = d.role;
+
+    $("loginCard").classList.add("hidden");
+    $("panelCard").classList.remove("hidden");
+    $("role").innerText = "ROLE: " + ROLE;
+
+    if(!["MASTER","OWNER"].includes(ROLE)){
+      $("logsBtn").style.display = "none";
+    }
+  })
+  .catch(err=>{
+    $("error").innerText = err.message;
+  });
 }
+
+/* -------- LICENSES -------- */
 function loadLic(){
- fetch("/licenses",{headers:{Authorization:"Bearer "+T}})
- .then(r=>r.json()).then(d=>out.textContent=JSON.stringify(d,null,2));
+  fetch("/licenses",{
+    headers:{ Authorization:"Bearer " + TOKEN }
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    $("out").textContent = JSON.stringify(d,null,2);
+  });
 }
+
+/* -------- LOGS -------- */
 function loadLogs(){
- fetch("/logs",{headers:{Authorization:"Bearer "+T}})
- .then(r=>r.json()).then(d=>out.textContent=JSON.stringify(d,null,2));
+  fetch("/logs",{
+    headers:{ Authorization:"Bearer " + TOKEN }
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    $("out").textContent = JSON.stringify(d,null,2);
+  });
 }
+
+/* -------- LOGOUT -------- */
 function logout(){
- T=""; panel.classList.add("hidden"); login.classList.remove("hidden");
+  TOKEN = "";
+  ROLE = "";
+  $("panelCard").classList.add("hidden");
+  $("loginCard").classList.remove("hidden");
+  $("p").value = "";
+  $("out").textContent = "";
 }
 </script>
 
